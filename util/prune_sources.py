@@ -6,12 +6,20 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
+from typing import AbstractSet
 
 
-# Extracted from build123d 0.11.1 and ocp-tessellate 3.5.0 imports.
+# Extracted from build123d 0.11.1 and ocp-tessellate 3.5.0 imports, then
+# expanded to include the transitive pybind11 base-class registration closure.
 REQUIRED_MODULES = frozenset(
     {
         "APIHeaderSection",
+        "Adaptor2d",
+        "Adaptor3d",
+        "AdvApp2Var",
+        "AppBlend",
+        "AppCont",
+        "Approx",
         "BOPAlgo",
         "BRep",
         "BRepAdaptor",
@@ -37,6 +45,8 @@ REQUIRED_MODULES = frozenset(
         "BRepTools",
         "BinTools",
         "Bnd",
+        "CDF",
+        "CDM",
         "ChFi2d",
         "Extrema",
         "Font",
@@ -55,20 +65,30 @@ REQUIRED_MODULES = frozenset(
         "GeomConvert",
         "GeomFill",
         "GeomLib",
+        "GeomPlate",
         "GeomProjLib",
         "Graphic3d",
         "HLRAlgo",
         "HLRBRep",
         "IFSelect",
         "IGESControl",
+        "IGESToBRep",
+        "IMeshData",
+        "IMeshTools",
         "IntAna2d",
+        "IntCurveSurface",
+        "IntRes2d",
         "Interface",
+        "Intf",
         "LocOpe",
         "Message",
         "NCollection",
         "Precision",
+        "Prs3d",
+        "Poly",
         "Quantity",
         "RWGltf",
+        "RWMesh",
         "RWStl",
         "STEPCAFControl",
         "STEPControl",
@@ -86,6 +106,7 @@ REQUIRED_MODULES = frozenset(
         "TDF",
         "TDataStd",
         "TDocStd",
+        "Transfer",
         "TopAbs",
         "TopExp",
         "TopLoc",
@@ -104,6 +125,8 @@ REGISTER_LINE = re.compile(
     r"^(?P<indent>\s*)(?:void\s+)?register_(?P<module>[A-Za-z0-9_]+?)"
     r"(?P<enums>_enums)?\((?:py::module&|m)\);\s*$"
 )
+CLASS_TEMPLATE = re.compile(r"py::class_<(?P<template>.+)>\s*\(m,")
+TYPE_NAME = re.compile(r"\b[A-Za-z_]\w*\b")
 
 
 def module_for_source(path: Path) -> str:
@@ -113,11 +136,57 @@ def module_for_source(path: Path) -> str:
     return re.sub(r"_\d+$", "", module)
 
 
+def missing_base_dependencies(
+    source_dir: Path, required_modules: AbstractSet[str]
+) -> dict[str, set[str]]:
+    """Find retained modules whose pybind11 base types live in pruned modules."""
+    declarations: list[tuple[str, str]] = []
+    class_owners: dict[str, str] = {}
+
+    for path in source_dir.glob("*_pre.cpp"):
+        module = module_for_source(path)
+        for line in path.read_text(encoding="utf-8").splitlines():
+            match = CLASS_TEMPLATE.search(line)
+            if not match:
+                continue
+            template = match.group("template")
+            type_names = TYPE_NAME.findall(template)
+            if not type_names:
+                continue
+            class_owners.setdefault(type_names[0], module)
+            declarations.append((module, template))
+
+    missing: dict[str, set[str]] = {}
+    for module, template in declarations:
+        if module not in required_modules:
+            continue
+        dependencies = {
+            owner
+            for type_name in TYPE_NAME.findall(template)
+            if (owner := class_owners.get(type_name)) is not None
+            and owner != module
+            and owner not in required_modules
+        }
+        if dependencies:
+            missing.setdefault(module, set()).update(dependencies)
+    return missing
+
+
 def prune(source_dir: Path) -> tuple[int, int]:
     source_dir = source_dir.resolve()
     ocp_cpp = source_dir / "OCP.cpp"
     if not ocp_cpp.is_file():
         raise RuntimeError(f"OCP.cpp not found in {source_dir}")
+
+    missing_dependencies = missing_base_dependencies(source_dir, REQUIRED_MODULES)
+    if missing_dependencies:
+        details = "; ".join(
+            f"{module} -> {', '.join(sorted(dependencies))}"
+            for module, dependencies in sorted(missing_dependencies.items())
+        )
+        raise RuntimeError(
+            f"Required OCP modules omit pybind11 base dependencies: {details}"
+        )
 
     required_sources = {
         f"{module}{suffix}.cpp"

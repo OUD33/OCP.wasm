@@ -4,13 +4,31 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from util.prune_sources import REQUIRED_MODULES, prune
+from util.prune_sources import REQUIRED_MODULES, missing_base_dependencies, prune
 
 
 class PruneSourcesTests(unittest.TestCase):
-    def test_inventory_contains_all_86_runtime_modules(self):
-        self.assertEqual(len(REQUIRED_MODULES), 86)
+    def test_inventory_contains_imports_and_transitive_base_modules(self):
+        self.assertEqual(len(REQUIRED_MODULES), 105)
         self.assertIn("math", REQUIRED_MODULES)
+        self.assertIn("Adaptor2d", REQUIRED_MODULES)
+
+    def test_detects_a_base_class_owned_by_an_omitted_module(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source_dir = Path(temporary_directory)
+            (source_dir / "Derived_pre.cpp").write_text(
+                'py::class_<Derived_Type, shared_ptr<Derived_Type>, Base_Type >(m,"Derived_Type");\n',
+                encoding="utf-8",
+            )
+            (source_dir / "Base_pre.cpp").write_text(
+                'py::class_<Base_Type, shared_ptr<Base_Type> >(m,"Base_Type");\n',
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                missing_base_dependencies(source_dir, {"Derived"}),
+                {"Derived": {"Base"}},
+            )
 
     def test_keeps_both_required_translation_units_and_patches_registration(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

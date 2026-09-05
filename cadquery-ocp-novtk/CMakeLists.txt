@@ -234,7 +234,7 @@ download_url(
   # Increment when the binding inventory changes. This restores the generated
   # source archive from a CI cache whose previous inventory was already pruned,
   # while retaining the expensive OCCT build objects in the same build tree.
-  REVISION "b123d-bindings-v2"
+  REVISION "b123d-bindings-v3"
 )
 
 execute_process(
