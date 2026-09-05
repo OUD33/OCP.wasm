@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - "master"
+      - "slim-ocp-for-build123d"
       - "renovate/**"
   pull_request:
   workflow_dispatch: # Always allow manual runs
