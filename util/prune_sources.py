@@ -96,6 +96,7 @@ REQUIRED_MODULES = frozenset(
         "XSControl",
         "gce",
         "gp",
+        "math",
     }
 )
 

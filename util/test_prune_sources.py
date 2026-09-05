@@ -8,6 +8,10 @@ from util.prune_sources import REQUIRED_MODULES, prune
 
 
 class PruneSourcesTests(unittest.TestCase):
+    def test_inventory_contains_all_86_runtime_modules(self):
+        self.assertEqual(len(REQUIRED_MODULES), 86)
+        self.assertIn("math", REQUIRED_MODULES)
+
     def test_keeps_both_required_translation_units_and_patches_registration(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             source_dir = Path(temporary_directory)
