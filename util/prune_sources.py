@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import AbstractSet
 
 
-# Extracted from build123d 0.11.1 and ocp-tessellate 3.5.0 imports, then
+# Extracted from build123d 0.11.1, current build123d development sources,
+# ocp-tessellate 3.5.0, ocp-gordon 0.2.2, and ocpsvg 0.6.0 imports, then
 # expanded to include the transitive pybind11 base-class and default-argument
 # registration closures.
 REQUIRED_MODULES = frozenset(
@@ -47,6 +48,7 @@ REQUIRED_MODULES = frozenset(
         "BRepPrimAPI",
         "BRepProj",
         "BRepTools",
+        "BSplCLib",
         "BinTools",
         "Bnd",
         "CDF",

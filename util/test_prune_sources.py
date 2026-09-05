@@ -14,9 +14,10 @@ from util.prune_sources import (
 
 class PruneSourcesTests(unittest.TestCase):
     def test_inventory_contains_transitive_registration_dependencies(self):
-        self.assertEqual(len(REQUIRED_MODULES), 123)
+        self.assertEqual(len(REQUIRED_MODULES), 124)
         self.assertIn("math", REQUIRED_MODULES)
         self.assertIn("Adaptor2d", REQUIRED_MODULES)
+        self.assertIn("BSplCLib", REQUIRED_MODULES)
         self.assertIn("Convert", REQUIRED_MODULES)
         self.assertIn("SelectBasics", REQUIRED_MODULES)
 

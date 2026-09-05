@@ -153,7 +153,7 @@ set(OCCT_SRC "${DEPS_DIR}/OpenCASCADE-src")
 set(OCCT_BIN "${DEPS_DIR}/OpenCASCADE-build")
 
 # This is the transitive OCCT toolkit closure for the OCP modules imported by
-# build123d 0.11.1 and ocp-tessellate 3.5.0. OCCT 7.9 uses the TKDE* toolkit
+# build123d and its OCP-using dependencies. OCCT 7.9 uses the TKDE* toolkit
 # names for data exchange; older TKSTEP/TKIGES names do not exist at this tag.
 set(OCP_REQUIRED_TOOLKITS
   TKernel
@@ -234,7 +234,7 @@ download_url(
   # Increment when the binding inventory changes. This restores the generated
   # source archive from a CI cache whose previous inventory was already pruned,
   # while retaining the expensive OCCT build objects in the same build tree.
-  REVISION "b123d-bindings-v4"
+  REVISION "b123d-bindings-v5"
 )
 
 execute_process(
