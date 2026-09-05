@@ -50,7 +50,9 @@ async def main():
 
         import warnings
 
-        await micropip.install("font-fetcher")
+        # pytest is installed into the Pyodide venv by the build123d bootstrap,
+        # but its Pyodide-provided pluggy dependency is not loaded automatically.
+        await micropip.install(["font-fetcher", "pluggy"])
         from font_fetcher.ocp import install_ocp_font_hook  # type: ignore
         from OCP.Font import (  # type: ignore
             Font_FA_Regular,
