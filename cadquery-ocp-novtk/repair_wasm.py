@@ -77,9 +77,12 @@ def repair_and_optimize_wasm(input_path, output_path):
     wasm_opt_args = (
         ["-O0", "--debuginfo"]
         if is_debug
-        else ["-O4"]
-        if os.environ.get("CI", "").lower() in {"1", "on", "true", "yes"}
-        else ["-O1"]
+        else [
+            "-Oz",
+            "--strip-debug",
+            "--strip-producers",
+            "--strip-target-features",
+        ]
     )
 
     print("Patching complete. Starting optimization (" + str(wasm_opt_args) + ")...")

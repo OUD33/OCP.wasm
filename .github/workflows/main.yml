@@ -7,7 +7,14 @@ on:
   workflow_dispatch: # Always allow manual runs
 
 jobs:
+  test_pruning:
+    runs-on: "ubuntu-24.04"
+    steps:
+      - uses: "actions/checkout@v7"
+      - run: python3 -m unittest util/test_prune_sources.py
+
   build_wheels:
+    needs: "test_pruning"
     runs-on: "ubuntu-24.04"
     strategy:
       fail-fast: false
@@ -16,9 +23,9 @@ jobs:
         build_type: ["Release", "Debug"]
         include: # Extends and overrides the matrix for specific configurations
           - build_type: "Release"
-            cflags: "-O3"
-            cxxflags: "-O3"
-            ldflags: "-O3"
+            cflags: "-Oz"
+            cxxflags: "-Oz"
+            ldflags: "-Oz"
           - build_type: "Debug"
             cflags: "-Og -g"
             cxxflags: "-Og -g"
@@ -30,7 +37,7 @@ jobs:
 
           - package: "cadquery-ocp-novtk"
             build_type: "Release"
-            ldflags: "-O1" # XXX: See repair_wasm.py invocation in CMakeLists.txt
+            ldflags: "-Oz"
           - package: "cadquery-ocp-novtk"
             build_type: "Debug"
             ldflags: "-Og -g2 -gseparate-dwarf" # Smaller debug files, default is too big for CI. The usual g3 level also crashes CI.

@@ -151,8 +151,56 @@ add_subdirectory("${FMT_SRC}" "${FMT_BIN}")
 # ##### OCCT #####
 set(OCCT_SRC "${DEPS_DIR}/OpenCASCADE-src")
 set(OCCT_BIN "${DEPS_DIR}/OpenCASCADE-build")
-set(BUILD_DOC_Overview OFF)
-set(BUILD_ADDITIONAL_TOOLKITS TKV3d)
+
+# This is the transitive OCCT toolkit closure for the OCP modules imported by
+# build123d 0.11.1 and ocp-tessellate 3.5.0. OCCT 7.9 uses the TKDE* toolkit
+# names for data exchange; older TKSTEP/TKIGES names do not exist at this tag.
+set(OCP_REQUIRED_TOOLKITS
+  TKernel
+  TKMath
+  TKG2d
+  TKG3d
+  TKBRep
+  TKGeomBase
+  TKGeomAlgo
+  TKTopAlgo
+  TKPrim
+  TKBO
+  TKBool
+  TKFillet
+  TKOffset
+  TKFeat
+  TKMesh
+  TKShHealing
+  TKHLR
+  TKXSBase
+  TKDE
+  TKDESTEP
+  TKDEIGES
+  TKDEGLTF
+  TKDESTL
+  TKRWMesh
+  TKCDF
+  TKLCAF
+  TKCAF
+  TKVCAF
+  TKXCAF
+  TKService
+  TKV3d
+)
+string(REPLACE ";" " " OCP_REQUIRED_TOOLKITS_C "${OCP_REQUIRED_TOOLKITS}")
+set(BUILD_ADDITIONAL_TOOLKITS "${OCP_REQUIRED_TOOLKITS_C}" CACHE STRING "" FORCE)
+foreach(OCCT_MODULE
+    FoundationClasses
+    ModelingData
+    ModelingAlgorithms
+    Visualization
+    ApplicationFramework
+    DataExchange
+    DETools
+    Draw)
+  set(BUILD_MODULE_${OCCT_MODULE} OFF CACHE BOOL "" FORCE)
+endforeach()
 checkout_git_tag(SRC "${OCCT_SRC}" URL "https://github.com/Open-Cascade-SAS/OCCT.git" TAG "V7_9_3")
 execute_process(
   COMMAND ${CMAKE_COMMAND} "-DREAL_SOURCE_DIR=${OCCT_SRC}" "-DREAL_BINARY_DIR=${OCCT_BIN}"
@@ -164,19 +212,15 @@ set_timestamps("${OCCT_SRC}")
 set_timestamps("${EMSCRIPTEN_SYSROOT}")
 add_subdirectory("${OCCT_SRC}" "${OCCT_BIN}")
 
-# Retrieve required OpenCASCADE information
+# Validate the explicitly selected OpenCASCADE targets.
 message(STATUS "opencascade_BINARY_DIR=${OCCT_BIN}")
-include("${OCCT_SRC}/adm/cmake/occt_macros.cmake")
-OCCT_MODULES_AND_TOOLKITS (MODULES "TOOLKITS" OCCT_MODULES)
-set(BUILD_TOOLKITS)
-foreach (OCCT_MODULE ${OCCT_MODULES})
-  foreach (__TK ${${OCCT_MODULE}_TOOLKITS})
-    if(TARGET ${__TK})
-      list(APPEND BUILD_TOOLKITS ${__TK})
-    endif()
-  endforeach()
+foreach(BUILD_TOOLKIT ${OCP_REQUIRED_TOOLKITS})
+  if(NOT TARGET ${BUILD_TOOLKIT})
+    message(FATAL_ERROR "Required OpenCASCADE toolkit target is unavailable: ${BUILD_TOOLKIT}")
+  endif()
 endforeach()
-string(REPLACE ";" " " BUILD_TOOLKITS_C "${BUILD_TOOLKITS}")
+set(BUILD_TOOLKITS ${OCP_REQUIRED_TOOLKITS})
+set(BUILD_TOOLKITS_C "${OCP_REQUIRED_TOOLKITS_C}")
 message(STATUS "-DOpenCASCADE_LIBRARIES=\\\"${BUILD_TOOLKITS_C}\\\"")
 
 # ##### OCP #####
@@ -209,8 +253,8 @@ if(EMSCRIPTEN)
   endif()
   message(STATUS "Setting up extra repair/optimization pass using ${WASM_OPT_VERSION}")
   string(CONCAT FLAGS "$ENV{LDFLAGS}" "${CMAKE_EXE_LINKER_FLAGS}")
-  if(NOT FLAGS MATCHES "-O[01g]")
-    message(FATAL_ERROR "LDFLAGS must contain -O0, -O1, or -Og.")
+  if(NOT FLAGS MATCHES "-O[01gsz]")
+    message(FATAL_ERROR "LDFLAGS must contain -O0, -O1, -Og, -Os, or -Oz.")
   endif()
 
   set(OPTIMIZED_DIR "${CMAKE_CURRENT_BINARY_DIR}/OCP-wasm-opt")

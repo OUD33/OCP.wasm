@@ -10,6 +10,9 @@ endif()
 if(NOT DEFINED rapidjson_SOURCE_DIR)
   message(FATAL_ERROR "OpenCASCADE_BINARY_DIR must be defined")
 endif()
+if(NOT DEFINED ROOT_SOURCE_DIR)
+  message(FATAL_ERROR "ROOT_SOURCE_DIR must be defined")
+endif()
 
 # ----- Remove vtk-related files (case-insensitive) -----
 file(GLOB_RECURSE all_sources
@@ -74,3 +77,11 @@ if(NOT content STREQUAL content_old)
   file(WRITE "${OCP_CMAKE}" "${content}")
   message(STATUS "Patched CMakeLists.txt")
 endif()
+
+# Remove generated bindings only after compatibility patches have inspected
+# source files that are intentionally absent from the slim module set.
+find_program(PYTHON3 python3 REQUIRED)
+execute_process(
+  COMMAND "${PYTHON3}" "${ROOT_SOURCE_DIR}/../util/prune_sources.py" "${REAL_SOURCE_DIR}"
+  COMMAND_ERROR_IS_FATAL ANY
+)
