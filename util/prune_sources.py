@@ -10,16 +10,20 @@ from typing import AbstractSet
 
 
 # Extracted from build123d 0.11.1 and ocp-tessellate 3.5.0 imports, then
-# expanded to include the transitive pybind11 base-class registration closure.
+# expanded to include the transitive pybind11 base-class and default-argument
+# registration closures.
 REQUIRED_MODULES = frozenset(
     {
         "APIHeaderSection",
+        "AIS",
         "Adaptor2d",
         "Adaptor3d",
         "AdvApp2Var",
         "AppBlend",
         "AppCont",
+        "AppParCurves",
         "Approx",
+        "Aspect",
         "BOPAlgo",
         "BRep",
         "BRepAdaptor",
@@ -48,6 +52,8 @@ REQUIRED_MODULES = frozenset(
         "CDF",
         "CDM",
         "ChFi2d",
+        "ChFi3d",
+        "Convert",
         "Extrema",
         "Font",
         "GC",
@@ -75,6 +81,7 @@ REQUIRED_MODULES = frozenset(
         "IGESToBRep",
         "IMeshData",
         "IMeshTools",
+        "Image",
         "IntAna2d",
         "IntCurveSurface",
         "IntRes2d",
@@ -83,20 +90,27 @@ REQUIRED_MODULES = frozenset(
         "LocOpe",
         "Message",
         "NCollection",
+        "OSD",
+        "PCDM",
         "Precision",
+        "PrsMgr",
         "Prs3d",
         "Poly",
         "Quantity",
         "RWGltf",
         "RWMesh",
         "RWStl",
+        "Resource",
         "STEPCAFControl",
         "STEPControl",
         "ShapeAnalysis",
+        "ShapeBuild",
         "ShapeCustom",
+        "ShapeExtend",
         "ShapeFix",
         "ShapeUpgrade",
         "Standard",
+        "StepData",
         "StdFail",
         "StdPrs",
         "StlAPI",
@@ -106,14 +120,19 @@ REQUIRED_MODULES = frozenset(
         "TDF",
         "TDataStd",
         "TDocStd",
+        "TPrsStd",
         "Transfer",
         "TopAbs",
         "TopExp",
         "TopLoc",
         "TopTools",
         "TopoDS",
+        "Select3D",
+        "SelectBasics",
+        "SelectMgr",
         "XCAFApp",
         "XCAFDoc",
+        "XCAFPrs",
         "XSControl",
         "gce",
         "gp",
@@ -126,6 +145,7 @@ REGISTER_LINE = re.compile(
     r"(?P<enums>_enums)?\((?:py::module&|m)\);\s*$"
 )
 CLASS_TEMPLATE = re.compile(r"py::class_<(?P<template>.+)>\s*\(m,")
+ENUM_TEMPLATE = re.compile(r"py::enum_<(?P<type>[A-Za-z_]\w*)>\s*\(m,")
 TYPE_NAME = re.compile(r"\b[A-Za-z_]\w*\b")
 
 
@@ -172,6 +192,50 @@ def missing_base_dependencies(
     return missing
 
 
+def missing_default_argument_dependencies(
+    source_dir: Path, required_modules: AbstractSet[str]
+) -> dict[str, set[str]]:
+    """Find Python defaults whose registered C++ types live in pruned modules.
+
+    pybind11 converts defaults to Python objects while a function is registered,
+    so their class or enum modules must be initialized even if application code
+    never imports those modules directly.
+    """
+    type_owners: dict[str, str] = {}
+    for path in source_dir.glob("*_pre.cpp"):
+        module = module_for_source(path)
+        for line in path.read_text(encoding="utf-8").splitlines():
+            class_match = CLASS_TEMPLATE.search(line)
+            if class_match:
+                type_names = TYPE_NAME.findall(class_match.group("template"))
+                if type_names:
+                    type_owners.setdefault(type_names[0], module)
+            enum_match = ENUM_TEMPLATE.search(line)
+            if enum_match:
+                type_owners.setdefault(enum_match.group("type"), module)
+
+    missing: dict[str, set[str]] = {}
+    for path in source_dir.glob("*.cpp"):
+        module = module_for_source(path)
+        if module not in required_modules or path.stem.endswith("_pre"):
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            for argument in line.split("py::arg")[1:]:
+                if "=" not in argument:
+                    continue
+                default_value = argument.split("=", 1)[1]
+                dependencies = {
+                    owner
+                    for type_name in TYPE_NAME.findall(default_value)
+                    if (owner := type_owners.get(type_name)) is not None
+                    and owner != module
+                    and owner not in required_modules
+                }
+                if dependencies:
+                    missing.setdefault(module, set()).update(dependencies)
+    return missing
+
+
 def prune(source_dir: Path) -> tuple[int, int]:
     source_dir = source_dir.resolve()
     ocp_cpp = source_dir / "OCP.cpp"
@@ -186,6 +250,19 @@ def prune(source_dir: Path) -> tuple[int, int]:
         )
         raise RuntimeError(
             f"Required OCP modules omit pybind11 base dependencies: {details}"
+        )
+
+    missing_defaults = missing_default_argument_dependencies(
+        source_dir, REQUIRED_MODULES
+    )
+    if missing_defaults:
+        details = "; ".join(
+            f"{module} -> {', '.join(sorted(dependencies))}"
+            for module, dependencies in sorted(missing_defaults.items())
+        )
+        raise RuntimeError(
+            "Required OCP modules omit pybind11 default-argument dependencies: "
+            f"{details}"
         )
 
     required_sources = {
