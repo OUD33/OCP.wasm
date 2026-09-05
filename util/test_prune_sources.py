@@ -40,12 +40,31 @@ class PruneSourcesTests(unittest.TestCase):
             self.assertIn("register_BRep", registrations)
             self.assertNotIn("register_AIS", registrations)
 
+            removed_again, kept_again = prune(source_dir)
+            self.assertEqual(removed_again, 0)
+            self.assertEqual(kept_again, len(REQUIRED_MODULES) * 2)
+
     def test_fails_if_the_generated_archive_lacks_a_required_module(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             source_dir = Path(temporary_directory)
             (source_dir / "OCP.cpp").touch()
 
-            with self.assertRaisesRegex(RuntimeError, "Required OCP modules are missing"):
+            with self.assertRaisesRegex(RuntimeError, "Required OCP sources are missing"):
+                prune(source_dir)
+
+    def test_fails_if_one_half_of_a_required_module_is_missing(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source_dir = Path(temporary_directory)
+            for module in REQUIRED_MODULES:
+                (source_dir / f"{module}.cpp").touch()
+                (source_dir / f"{module}_pre.cpp").touch()
+            missing_module = min(REQUIRED_MODULES)
+            (source_dir / f"{missing_module}_pre.cpp").unlink()
+            (source_dir / "OCP.cpp").touch()
+
+            with self.assertRaisesRegex(
+                RuntimeError, f"{missing_module}_pre[.]cpp"
+            ):
                 prune(source_dir)
 
 

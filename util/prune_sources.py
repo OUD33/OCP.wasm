@@ -118,14 +118,20 @@ def prune(source_dir: Path) -> tuple[int, int]:
     if not ocp_cpp.is_file():
         raise RuntimeError(f"OCP.cpp not found in {source_dir}")
 
-    discovered = {
-        module_for_source(path)
-        for path in source_dir.glob("*.cpp")
-        if path.name != "OCP.cpp"
+    required_sources = {
+        f"{module}{suffix}.cpp"
+        for module in REQUIRED_MODULES
+        for suffix in ("", "_pre")
     }
-    missing = sorted(REQUIRED_MODULES - discovered)
-    if missing:
-        raise RuntimeError(f"Required OCP modules are missing: {', '.join(missing)}")
+    missing_sources = sorted(
+        source_name
+        for source_name in required_sources
+        if not (source_dir / source_name).is_file()
+    )
+    if missing_sources:
+        raise RuntimeError(
+            f"Required OCP sources are missing: {', '.join(missing_sources)}"
+        )
 
     removed = 0
     kept = 0

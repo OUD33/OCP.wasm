@@ -14,6 +14,24 @@ if(NOT DEFINED ROOT_SOURCE_DIR)
   message(FATAL_ERROR "ROOT_SOURCE_DIR must be defined")
 endif()
 
+set(PRUNE_SCRIPT "${ROOT_SOURCE_DIR}/../util/prune_sources.py")
+set(PRUNE_MARKER "${REAL_SOURCE_DIR}/.b123d-studio-pruned")
+find_program(PYTHON3 python3 REQUIRED)
+
+# The generated source directory is preserved in the CI build cache. CMake may
+# therefore run this script again after the one-time compatibility patches and
+# pruning have already completed. Validate the retained binding set, then stop
+# before trying to patch source files which were intentionally removed.
+if(EXISTS "${PRUNE_MARKER}" OR NOT EXISTS "${REAL_SOURCE_DIR}/OSD.cpp")
+  execute_process(
+    COMMAND "${PYTHON3}" "${PRUNE_SCRIPT}" "${REAL_SOURCE_DIR}"
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+  file(TOUCH "${PRUNE_MARKER}")
+  message(STATUS "OCP source tree is already pruned; skipped one-time compatibility patches")
+  return()
+endif()
+
 # ----- Remove vtk-related files (case-insensitive) -----
 file(GLOB_RECURSE all_sources
   "${REAL_SOURCE_DIR}/*.cpp"
@@ -80,8 +98,8 @@ endif()
 
 # Remove generated bindings only after compatibility patches have inspected
 # source files that are intentionally absent from the slim module set.
-find_program(PYTHON3 python3 REQUIRED)
 execute_process(
-  COMMAND "${PYTHON3}" "${ROOT_SOURCE_DIR}/../util/prune_sources.py" "${REAL_SOURCE_DIR}"
+  COMMAND "${PYTHON3}" "${PRUNE_SCRIPT}" "${REAL_SOURCE_DIR}"
   COMMAND_ERROR_IS_FATAL ANY
 )
+file(TOUCH "${PRUNE_MARKER}")
