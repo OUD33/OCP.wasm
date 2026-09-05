@@ -38,7 +38,11 @@ jobs:
 
           - package: "cadquery-ocp-novtk"
             build_type: "Release"
-            ldflags: "-Oz"
+            # OCP's generated wasm can contain a malformed br_table which is
+            # repaired by repair_wasm.py after linking. Keep Emscripten's
+            # pre-repair optimization at -O1; -Oz runs wasm-opt too early and
+            # fails while parsing the unpatched module.
+            ldflags: "-O1"
           - package: "cadquery-ocp-novtk"
             build_type: "Debug"
             ldflags: "-Og -g2 -gseparate-dwarf" # Smaller debug files, default is too big for CI. The usual g3 level also crashes CI.
