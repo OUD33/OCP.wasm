@@ -71,14 +71,24 @@ async def main():
                 "scipy",
                 "svgwrite",
                 "sympy",
-                # build123d dev imports the lowercase PEP 661 constructor,
-                # which was added in typing_extensions 4.16.
-                "typing-extensions>=4.16",
-            ],
-            # Pyodide currently bundles an older compatible-by-name release.
-            # Replace it when the explicit lower bound is not satisfied.
+            ]
+        )
+
+        # Loading Beautiful Soup through Pyodide pulls its bundled
+        # typing_extensions 4.15 payload over the 4.16 wheel installed by the
+        # bootstrap. A direct wheel URL bypasses Micropip's satisfied-version
+        # shortcut and restores the lowercase PEP 661 sentinel constructor
+        # required by build123d dev.
+        await micropip.install(
+            "https://files.pythonhosted.org/packages/49/d3/"
+            "b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/"
+            "typing_extensions-4.16.0-py3-none-any.whl",
+            deps=False,
             reinstall=True,
         )
+        sys.modules.pop("typing_extensions", None)
+        from typing_extensions import sentinel as _sentinel  # noqa: F401
+
         from font_fetcher.ocp import install_ocp_font_hook  # type: ignore
         from OCP.Font import (  # type: ignore
             Font_FA_Regular,
