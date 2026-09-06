@@ -185,6 +185,16 @@ async def main():
                 + format_import_failures(import_failures)
             )
 
+        # build123d 0.11.1 has a test decorator that resolves
+        # ``build123d.topology.three_d`` during collection. Pyodide can retain
+        # the imported submodule in sys.modules without publishing it on the
+        # parent package, so restore the standard package attribute explicitly.
+        build123d_package = importlib.import_module("build123d")
+        if not hasattr(build123d_package, "topology"):
+            build123d_package.topology = importlib.import_module(
+                "build123d.topology"
+            )
+
         from font_fetcher.ocp import install_ocp_font_hook  # type: ignore
         from OCP.Font import (  # type: ignore
             Font_FA_Regular,
