@@ -63,6 +63,7 @@ async def main():
                 "ipython",
                 "numpy",
                 "packaging",
+                "pillow",
                 "pluggy",
                 "pygments",
                 "pyparsing",
