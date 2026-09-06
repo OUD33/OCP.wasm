@@ -12,31 +12,78 @@ def canonicalize_distribution_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
+def normalize_lock_import_name(name: str) -> str:
+    """Correct distribution-style separators in Pyodide import metadata."""
+    # Most lock entries contain real import names, but some (notably
+    # matplotlib-inline in Pyodide 314.0.2) contain the distribution name.
+    # Hyphens cannot occur in a Python identifier, so the import uses an
+    # underscore instead.
+    return name.replace("-", "_")
+
+
 def installed_pyodide_modules(
     installed_distributions: Iterable[str],
     lock_packages: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, tuple[str, ...]]:
-    """Return lock package keys and imports for installed distributions."""
+    """Return lock package keys/imports for installed roots and dependencies."""
     installed = {
         canonicalize_distribution_name(name)
         for name in installed_distributions
         if name
     }
     packages: dict[str, tuple[str, ...]] = {}
+    lock_keys_by_name: dict[str, str] = {}
 
     for lock_key, metadata in lock_packages.items():
         distribution_name = str(metadata.get("name") or lock_key)
-        if canonicalize_distribution_name(distribution_name) not in installed:
+        lock_keys_by_name[canonicalize_distribution_name(lock_key)] = lock_key
+        lock_keys_by_name[
+            canonicalize_distribution_name(distribution_name)
+        ] = lock_key
+
+    pending = [
+        lock_key
+        for distribution_name in installed
+        if (lock_key := lock_keys_by_name.get(distribution_name)) is not None
+    ]
+    visited: set[str] = set()
+    while pending:
+        lock_key = pending.pop()
+        if lock_key in visited:
             continue
+        visited.add(lock_key)
+        metadata = lock_packages[lock_key]
 
         raw_imports = metadata.get("imports", ())
-        if not isinstance(raw_imports, (list, tuple)):
-            continue
-        imports = tuple(
-            sorted({name for name in raw_imports if isinstance(name, str) and name})
+        imports = (
+            tuple(
+                sorted(
+                    {
+                        normalize_lock_import_name(name)
+                        for name in raw_imports
+                        if isinstance(name, str) and name
+                    }
+                )
+            )
+            if isinstance(raw_imports, (list, tuple))
+            else ()
         )
         if imports:
             packages[lock_key] = imports
+
+        raw_dependencies = metadata.get("depends", ())
+        if isinstance(raw_dependencies, (list, tuple)):
+            pending.extend(
+                dependency_key
+                for dependency in raw_dependencies
+                if isinstance(dependency, str)
+                and (
+                    dependency_key := lock_keys_by_name.get(
+                        canonicalize_distribution_name(dependency)
+                    )
+                )
+                is not None
+            )
 
     return packages
 

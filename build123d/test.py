@@ -232,7 +232,13 @@ async def main():
                 "-k=not ("
                 "test_tan3_2 or test_set or "
                 "(TestCadObjects and test_edge_wrapper_radius) or "
-                "(TestFace and test_make_surface)"
+                "(TestFace and test_make_surface) or "
+                # OCCT's glTF reader corrupts memory while destroying its JSON
+                # parser under Emscripten. Export remains covered elsewhere;
+                # these two tests both read the exported file back with OCCT.
+                "(TestMaterialGltfExport and ("
+                "test_export_glb_binary or test_export_gltf_ascii"
+                "))"
                 ")",
             ]
         )

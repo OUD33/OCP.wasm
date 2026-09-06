@@ -18,17 +18,55 @@ class RuntimePreflightTests(unittest.TestCase):
                 "name": "scikit-learn",
                 "imports": ["sklearn"],
             },
+            "matplotlib-inline": {
+                "name": "matplotlib-inline",
+                "imports": ["matplotlib-inline"],
+            },
             "unused": {"name": "unused", "imports": ["unused"]},
             "metadata-only": {"name": "metadata-only", "imports": []},
         }
 
         self.assertEqual(
             installed_pyodide_modules(
-                ["pillow", "scikit_learn", "metadata.only"], lock_packages
+                [
+                    "pillow",
+                    "scikit_learn",
+                    "matplotlib_inline",
+                    "metadata.only",
+                ],
+                lock_packages,
             ),
             {
+                "matplotlib-inline": ("matplotlib_inline",),
                 "pillow": ("PIL",),
                 "scikit-learn": ("sklearn",),
+            },
+        )
+
+    def test_includes_transitive_lock_dependencies(self):
+        lock_packages = {
+            "pytest": {
+                "name": "pytest",
+                "imports": ["_pytest", "pytest"],
+                "depends": ["pluggy"],
+            },
+            "pluggy": {
+                "name": "pluggy",
+                "imports": ["pluggy"],
+                "depends": [],
+            },
+            "unused": {
+                "name": "unused",
+                "imports": ["unused"],
+                "depends": [],
+            },
+        }
+
+        self.assertEqual(
+            installed_pyodide_modules(["pytest"], lock_packages),
+            {
+                "pluggy": ("pluggy",),
+                "pytest": ("_pytest", "pytest"),
             },
         )
 
