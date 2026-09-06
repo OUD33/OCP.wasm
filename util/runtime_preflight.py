@@ -51,6 +51,18 @@ def project_requirement_names(
     }
 
 
+def effective_distribution_versions(
+    distribution_names: Iterable[str],
+    version_resolver: Callable[[str], str],
+) -> dict[str, str]:
+    """Resolve one effective version per name despite duplicate metadata."""
+    return {
+        name: version_resolver(name)
+        for name in set(distribution_names)
+        if name
+    }
+
+
 def installed_pyodide_modules(
     installed_distributions: Iterable[str],
     lock_packages: Mapping[str, Mapping[str, Any]],

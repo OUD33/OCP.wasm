@@ -40,6 +40,7 @@ async def main():
         from util.runtime_preflight import (
             collect_import_failures,
             compatible_pyodide_payloads,
+            effective_distribution_versions,
             format_import_failures,
             installed_pyodide_modules,
             missing_pyodide_payloads,
@@ -83,11 +84,12 @@ async def main():
             for distribution in distributions
             if (name := distribution.metadata.get("Name"))
         ]
-        installed_versions = {
-            name: distribution.version
-            for distribution in distributions
-            if (name := distribution.metadata.get("Name"))
-        }
+        # Layered Micropip/Pyodide installs can leave duplicate dist-info
+        # records. Resolve each effective version through importlib's normal
+        # search order instead of allowing the last arbitrary record to win.
+        installed_versions = effective_distribution_versions(
+            distribution_names, importlib.metadata.version
+        )
         with open(Path(extracted_dir) / "pyproject.toml", "rb") as pyproject_file:
             pyproject = tomllib.load(pyproject_file)
         distribution_names.extend(

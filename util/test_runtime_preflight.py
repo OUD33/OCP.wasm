@@ -5,6 +5,7 @@ import unittest
 from util.runtime_preflight import (
     collect_import_failures,
     compatible_pyodide_payloads,
+    effective_distribution_versions,
     format_import_failures,
     installed_pyodide_modules,
     missing_pyodide_payloads,
@@ -13,6 +14,25 @@ from util.runtime_preflight import (
 
 
 class RuntimePreflightTests(unittest.TestCase):
+    def test_resolves_duplicate_distribution_names_through_effective_lookup(self):
+        resolved = {
+            "pytest": "9.1.1",
+            "svgwrite": "1.4.3",
+        }
+        calls: list[str] = []
+
+        def version_resolver(name: str) -> str:
+            calls.append(name)
+            return resolved[name]
+
+        self.assertEqual(
+            effective_distribution_versions(
+                ["svgwrite", "pytest", "svgwrite"], version_resolver
+            ),
+            resolved,
+        )
+        self.assertCountEqual(calls, ["pytest", "svgwrite"])
+
     def test_reads_project_and_selected_optional_requirement_names(self):
         pyproject = {
             "project": {
