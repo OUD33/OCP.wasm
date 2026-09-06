@@ -288,9 +288,10 @@ async def main():
                 "(TestFace and test_make_surface) or "
                 # OCCT's glTF reader corrupts memory while destroying its JSON
                 # parser under Emscripten. Export remains covered elsewhere;
-                # these two tests both read the exported file back with OCCT.
+                # these three tests read the exported file back with OCCT.
                 "(TestMaterialGltfExport and ("
-                "test_export_glb_binary or test_export_gltf_ascii"
+                "test_export_glb_binary or test_export_gltf_ascii or "
+                "test_glb_pbr_values"
                 "))"
                 ")",
             ]
