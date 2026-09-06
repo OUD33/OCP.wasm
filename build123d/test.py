@@ -44,6 +44,7 @@ async def main():
             format_import_failures,
             installed_pyodide_modules,
             missing_pyodide_payloads,
+            payloads_for_missing_imports,
             project_requirement_names,
         )
 
@@ -154,9 +155,30 @@ async def main():
         # missing native symbols even when Python can discover its module spec.
         runtime_modules = {"build123d", "pytest"}
         runtime_modules.update(f"OCP.{module}" for module in REQUIRED_MODULES)
-        import_failures = collect_import_failures(
-            runtime_modules, importlib.import_module
-        )
+        recovered_payloads = set()
+        while True:
+            import_failures = collect_import_failures(
+                runtime_modules, importlib.import_module
+            )
+            recovery_candidates = payloads_for_missing_imports(
+                import_failures, lock_packages
+            )
+            recovery_payloads = [
+                payload
+                for payload in compatible_pyodide_payloads(
+                    recovery_candidates, lock_packages, installed_versions
+                )
+                if payload not in recovered_payloads
+            ]
+            if not recovery_payloads:
+                break
+            print(
+                "Loading payloads discovered by aggregate root imports: "
+                + ", ".join(recovery_payloads)
+            )
+            await pyodide_js.loadPackage(recovery_payloads)
+            recovered_payloads.update(recovery_payloads)
+            importlib.invalidate_caches()
         if import_failures:
             raise RuntimeError(
                 "Runtime import preflight failed:\n"

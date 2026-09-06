@@ -9,6 +9,7 @@ from util.runtime_preflight import (
     format_import_failures,
     installed_pyodide_modules,
     missing_pyodide_payloads,
+    payloads_for_missing_imports,
     project_requirement_names,
 )
 
@@ -173,6 +174,24 @@ class RuntimePreflightTests(unittest.TestCase):
             format_import_failures(failures),
             "- missing_a: ModuleNotFoundError: No module named 'missing_a'\n"
             "- missing_b: ModuleNotFoundError: No module named 'missing_b'",
+        )
+
+    def test_maps_all_missing_imports_to_lock_payloads(self):
+        failures = {
+            "build123d": "ModuleNotFoundError: No module named 'svgwrite'",
+            "pytest": "ModuleNotFoundError: No module named 'pluggy._hooks'",
+            "other": "RuntimeError: unrelated",
+        }
+        lock_packages = {
+            "pluggy": {"imports": ["pluggy"]},
+            "svgwrite": {"imports": ["svgwrite"]},
+            "unused": {"imports": ["unused"]},
+            "matplotlib-inline": {"imports": ["matplotlib-inline"]},
+        }
+
+        self.assertEqual(
+            payloads_for_missing_imports(failures, lock_packages),
+            ["pluggy", "svgwrite"],
         )
 
 

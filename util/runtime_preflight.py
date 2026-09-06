@@ -186,6 +186,33 @@ def collect_import_failures(
     return failures
 
 
+def payloads_for_missing_imports(
+    failures: Mapping[str, str],
+    lock_packages: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    """Map aggregate missing-module errors back to Pyodide lock packages."""
+    missing_roots: set[str] = set()
+    for message in failures.values():
+        match = re.search(r"No module named ['\"]([^'\"]+)", message)
+        if match:
+            missing_roots.add(match.group(1).split(".", 1)[0])
+
+    payloads: list[str] = []
+    for package, metadata in lock_packages.items():
+        raw_imports = metadata.get("imports", ())
+        if not isinstance(raw_imports, (list, tuple)):
+            continue
+        import_roots = {
+            normalize_lock_import_name(module).split(".", 1)[0]
+            for module in raw_imports
+            if isinstance(module, str) and module
+        }
+        if import_roots & missing_roots:
+            payloads.append(package)
+
+    return sorted(payloads)
+
+
 def format_import_failures(failures: Mapping[str, str]) -> str:
     """Format aggregate failures deterministically for CI logs."""
     return "\n".join(
