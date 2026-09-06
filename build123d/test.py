@@ -283,9 +283,20 @@ async def main():
                 "--ignore=tests/test_direct_api/test_vtk_poly_data.py",  # build123d <= v0.10.0
                 # Skip some tests that are known to be flaky in the Emscripten environment, likely due to differences in floating-point behavior or other platform-specific issues. These should be investigated and fixed eventually, but for now this allows us to use tests to catch regressions in the Emscripten environment without being blocked by these known issues.
                 "-k=not ("
-                "test_tan3_2 or test_set or "
+                "test_tan3_2 or test_set or test_double_tangent_arc or "
                 "(TestCadObjects and test_edge_wrapper_radius) or "
                 "(TestFace and test_make_surface) or "
+                # The standard Pyodide build is single-threaded, so tests that
+                # intentionally create native Python threads cannot run here.
+                "test_build_scope_contextvar_is_isolated_between_threads or "
+                "test_contextvars_are_isolated_between_threads or "
+                # The browser image has no system font inventory. Default and
+                # embedded single-line fonts remain covered, while tests that
+                # require unavailable or deliberately missing fonts do not.
+                "test_text_resolved_font_attributes or "
+                "(TestDocsExamples and ("
+                "test_objects_2d or test_objects_examples_text"
+                ")) or "
                 # OCCT's glTF reader corrupts memory while destroying its JSON
                 # parser under Emscripten. Export remains covered elsewhere;
                 # these three tests read the exported file back with OCCT.
