@@ -7,10 +7,33 @@ from util.runtime_preflight import (
     format_import_failures,
     installed_pyodide_modules,
     missing_pyodide_payloads,
+    project_requirement_names,
 )
 
 
 class RuntimePreflightTests(unittest.TestCase):
+    def test_reads_project_and_selected_optional_requirement_names(self):
+        pyproject = {
+            "project": {
+                "dependencies": [
+                    "svgwrite",
+                    "scikit-learn>=1.5; python_version >= '3.11'",
+                ],
+                "optional-dependencies": {
+                    "development": ["pytest>=9.1.1"],
+                    "benchmark": ["pytest-benchmark"],
+                    "docs": ["sphinx"],
+                },
+            }
+        }
+
+        self.assertEqual(
+            project_requirement_names(
+                pyproject, optional_groups=("development", "benchmark")
+            ),
+            {"pytest", "pytest-benchmark", "scikit-learn", "svgwrite"},
+        )
+
     def test_matches_installed_distributions_and_normalizes_names(self):
         lock_packages = {
             "pillow": {"name": "Pillow", "imports": ["PIL"]},

@@ -6,6 +6,8 @@ import re
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
+from packaging.requirements import Requirement
+
 
 def canonicalize_distribution_name(name: str) -> str:
     """Normalize a distribution name using the PyPA name-matching rules."""
@@ -19,6 +21,34 @@ def normalize_lock_import_name(name: str) -> str:
     # Hyphens cannot occur in a Python identifier, so the import uses an
     # underscore instead.
     return name.replace("-", "_")
+
+
+def project_requirement_names(
+    pyproject: Mapping[str, Any],
+    optional_groups: Iterable[str] = (),
+) -> set[str]:
+    """Return declared distribution names from selected project groups."""
+    project = pyproject.get("project", {})
+    if not isinstance(project, Mapping):
+        return set()
+
+    raw_requirements: list[Any] = []
+    dependencies = project.get("dependencies", ())
+    if isinstance(dependencies, (list, tuple)):
+        raw_requirements.extend(dependencies)
+
+    optional = project.get("optional-dependencies", {})
+    if isinstance(optional, Mapping):
+        for group in optional_groups:
+            requirements = optional.get(group, ())
+            if isinstance(requirements, (list, tuple)):
+                raw_requirements.extend(requirements)
+
+    return {
+        Requirement(requirement).name
+        for requirement in raw_requirements
+        if isinstance(requirement, str) and requirement.strip()
+    }
 
 
 def installed_pyodide_modules(

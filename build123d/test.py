@@ -5,6 +5,7 @@ import importlib.util
 import logging
 import os
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -41,6 +42,7 @@ async def main():
             format_import_failures,
             installed_pyodide_modules,
             missing_pyodide_payloads,
+            project_requirement_names,
         )
 
         def _new_urlretrieve(url, filename=None, reporthook=None, data=None):
@@ -79,6 +81,13 @@ async def main():
             for distribution in importlib.metadata.distributions()
             if (name := distribution.metadata.get("Name"))
         ]
+        with open(Path(extracted_dir) / "pyproject.toml", "rb") as pyproject_file:
+            pyproject = tomllib.load(pyproject_file)
+        distribution_names.extend(
+            project_requirement_names(
+                pyproject, optional_groups=("development", "benchmark")
+            )
+        )
         pyodide_modules = installed_pyodide_modules(
             distribution_names, lock_packages
         )
