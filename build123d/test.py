@@ -50,12 +50,29 @@ async def main():
 
         import warnings
 
-        # pytest is installed into the Pyodide venv by the build123d bootstrap,
-        # but dependencies supplied by the Pyodide package index are not loaded
-        # automatically for that preinstalled wheel. Load its complete direct
-        # runtime dependency set before importing pytest below.
+        # Packages installed into the Pyodide venv can have matching dist-info
+        # without their Pyodide package payload being loaded. Explicitly load the
+        # runtime roots used by build123d, ocp-tessellate, and pytest so collection
+        # tests the OCP wheel instead of failing on an unrelated Python package.
         await micropip.install(
-            ["font-fetcher", "iniconfig", "packaging", "pluggy", "pygments"]
+            [
+                "cachetools",
+                "font-fetcher",
+                "fonttools",
+                "iniconfig",
+                "ipython",
+                "numpy",
+                "packaging",
+                "pluggy",
+                "pygments",
+                "pyparsing",
+                "requests",
+                "scikit-learn",
+                "scipy",
+                "svgwrite",
+                "sympy",
+                "typing-extensions",
+            ]
         )
         from font_fetcher.ocp import install_ocp_font_hook  # type: ignore
         from OCP.Font import (  # type: ignore
