@@ -118,6 +118,36 @@ def installed_pyodide_modules(
     return packages
 
 
+def compatible_pyodide_payloads(
+    required_packages: Iterable[str],
+    lock_packages: Mapping[str, Mapping[str, Any]],
+    installed_versions: Mapping[str, str],
+) -> list[str]:
+    """Return required lock payloads that will not replace a version override."""
+    normalized_versions = {
+        canonicalize_distribution_name(name): version
+        for name, version in installed_versions.items()
+    }
+    payloads: list[str] = []
+
+    for lock_key in required_packages:
+        metadata = lock_packages[lock_key]
+        distribution_name = str(metadata.get("name") or lock_key)
+        installed_version = normalized_versions.get(
+            canonicalize_distribution_name(distribution_name)
+        )
+        lock_version = metadata.get("version")
+        if (
+            installed_version is not None
+            and isinstance(lock_version, str)
+            and installed_version != lock_version
+        ):
+            continue
+        payloads.append(lock_key)
+
+    return sorted(set(payloads))
+
+
 def missing_pyodide_payloads(
     installed_modules: Mapping[str, tuple[str, ...]],
     module_available: Callable[[str], bool],

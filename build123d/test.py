@@ -39,6 +39,7 @@ async def main():
         from util.prune_sources import REQUIRED_MODULES
         from util.runtime_preflight import (
             collect_import_failures,
+            compatible_pyodide_payloads,
             format_import_failures,
             installed_pyodide_modules,
             missing_pyodide_payloads,
@@ -76,11 +77,17 @@ async def main():
         # set from the running version's lock instead of maintaining package names
         # manually, and load every absent payload in one batch.
         lock_packages = pyodide_js.lockfile.to_py()["packages"]
+        distributions = list(importlib.metadata.distributions())
         distribution_names = [
             name
-            for distribution in importlib.metadata.distributions()
+            for distribution in distributions
             if (name := distribution.metadata.get("Name"))
         ]
+        installed_versions = {
+            name: distribution.version
+            for distribution in distributions
+            if (name := distribution.metadata.get("Name"))
+        }
         with open(Path(extracted_dir) / "pyproject.toml", "rb") as pyproject_file:
             pyproject = tomllib.load(pyproject_file)
         distribution_names.extend(
@@ -98,15 +105,20 @@ async def main():
             except (AttributeError, ImportError, ValueError):
                 return False
 
-        missing_payloads = missing_pyodide_payloads(
-            pyodide_modules, _module_available
+        # Pyodide's import hook can return a module spec for a package listed in
+        # its lock even when that wheel has not been loaded yet. Explicitly load
+        # the whole compatible dependency closure in one batch. Keep newer
+        # Micropip-installed overrides (such as pytest and typing_extensions)
+        # instead of replacing them with older pinned Pyodide payloads.
+        payloads = compatible_pyodide_payloads(
+            pyodide_modules, lock_packages, installed_versions
         )
-        if missing_payloads:
+        if payloads:
             print(
-                "Loading missing Pyodide payloads: "
-                + ", ".join(missing_payloads)
+                "Loading compatible Pyodide dependency closure: "
+                + ", ".join(payloads)
             )
-            await pyodide_js.loadPackage(missing_payloads)
+            await pyodide_js.loadPackage(payloads)
 
         missing_payloads = missing_pyodide_payloads(
             pyodide_modules, _module_available

@@ -4,6 +4,7 @@ import unittest
 
 from util.runtime_preflight import (
     collect_import_failures,
+    compatible_pyodide_payloads,
     format_import_failures,
     installed_pyodide_modules,
     missing_pyodide_payloads,
@@ -105,6 +106,30 @@ class RuntimePreflightTests(unittest.TestCase):
                 installed_modules, lambda name: name in {"numpy", "scipy"}
             ),
             ["pillow", "scipy"],
+        )
+
+    def test_loads_compatible_payloads_without_replacing_version_overrides(self):
+        lock_packages = {
+            "pluggy": {"name": "pluggy", "version": "1.6.0"},
+            "pytest": {"name": "pytest", "version": "9.0.2"},
+            "svgwrite": {"name": "svgwrite", "version": "1.4.3"},
+            "typing-extensions": {
+                "name": "typing-extensions",
+                "version": "4.15.0",
+            },
+        }
+
+        self.assertEqual(
+            compatible_pyodide_payloads(
+                lock_packages,
+                lock_packages,
+                {
+                    "pytest": "9.1.1",
+                    "svgwrite": "1.4.3",
+                    "typing_extensions": "4.16.0",
+                },
+            ),
+            ["pluggy", "svgwrite"],
         )
 
     def test_import_sweep_collects_all_failures(self):
