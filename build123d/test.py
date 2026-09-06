@@ -1,7 +1,11 @@
 import asyncio
+import importlib
+import importlib.metadata
+import importlib.util
 import logging
 import os
 import sys
+from pathlib import Path
 
 
 async def main():
@@ -24,7 +28,20 @@ async def main():
     if sys.platform == "emscripten":
         # Hackier patches that are required for passing tests, but should not be mandatory for bootstrap()
         import micropip  # type: ignore
+        import pyodide_js  # type: ignore
         from pyodide.ffi import run_sync  # type: ignore
+
+        repository_root = Path(__file__).resolve().parent.parent
+        if str(repository_root) not in sys.path:
+            sys.path.insert(0, str(repository_root))
+
+        from util.prune_sources import REQUIRED_MODULES
+        from util.runtime_preflight import (
+            collect_import_failures,
+            format_import_failures,
+            installed_pyodide_modules,
+            missing_pyodide_payloads,
+        )
 
         def _new_urlretrieve(url, filename=None, reporthook=None, data=None):
             if (
@@ -50,30 +67,37 @@ async def main():
 
         import warnings
 
-        # Packages installed into the Pyodide venv can have matching dist-info
-        # without their Pyodide package payload being loaded. Explicitly load the
-        # runtime roots used by build123d, ocp-tessellate, and pytest so collection
-        # tests the OCP wheel instead of failing on an unrelated Python package.
-        await micropip.install(
-            [
-                "cachetools",
-                "font-fetcher",
-                "fonttools",
-                "iniconfig",
-                "ipython",
-                "numpy",
-                "packaging",
-                "pillow",
-                "pluggy",
-                "pygments",
-                "pyparsing",
-                "requests",
-                "scikit-learn",
-                "scipy",
-                "svgwrite",
-                "sympy",
-            ]
+        await micropip.install("font-fetcher")
+
+        # Micropip can find valid dist-info installed by the bootstrap even when
+        # the corresponding Pyodide payload was never loaded. Derive the complete
+        # set from the running version's lock instead of maintaining package names
+        # manually, and load every absent payload in one batch.
+        lock_packages = pyodide_js.lockfile.to_py()["packages"]
+        distribution_names = [
+            name
+            for distribution in importlib.metadata.distributions()
+            if (name := distribution.metadata.get("Name"))
+        ]
+        pyodide_modules = installed_pyodide_modules(
+            distribution_names, lock_packages
         )
+
+        def _module_available(module_name):
+            try:
+                return importlib.util.find_spec(module_name) is not None
+            except (AttributeError, ImportError, ValueError):
+                return False
+
+        missing_payloads = missing_pyodide_payloads(
+            pyodide_modules, _module_available
+        )
+        if missing_payloads:
+            print(
+                "Loading missing Pyodide payloads: "
+                + ", ".join(missing_payloads)
+            )
+            await pyodide_js.loadPackage(missing_payloads)
 
         # Loading Beautiful Soup through Pyodide pulls its bundled
         # typing_extensions 4.15 payload over the 4.16 wheel installed by the
@@ -89,6 +113,24 @@ async def main():
         )
         sys.modules.pop("typing_extensions", None)
         from typing_extensions import sentinel as _sentinel  # noqa: F401
+
+        # Import every declared Pyodide module and retained OCP binding even when
+        # earlier imports fail. A single CI run therefore reports the complete
+        # missing/broken module set.
+        runtime_modules = {
+            module
+            for modules in pyodide_modules.values()
+            for module in modules
+        }
+        runtime_modules.update(f"OCP.{module}" for module in REQUIRED_MODULES)
+        import_failures = collect_import_failures(
+            runtime_modules, importlib.import_module
+        )
+        if import_failures:
+            raise RuntimeError(
+                "Runtime import preflight failed:\n"
+                + format_import_failures(import_failures)
+            )
 
         from font_fetcher.ocp import install_ocp_font_hook  # type: ignore
         from OCP.Font import (  # type: ignore
