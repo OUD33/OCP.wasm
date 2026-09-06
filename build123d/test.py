@@ -71,8 +71,13 @@ async def main():
                 "scipy",
                 "svgwrite",
                 "sympy",
-                "typing-extensions",
-            ]
+                # build123d dev imports the lowercase PEP 661 constructor,
+                # which was added in typing_extensions 4.16.
+                "typing-extensions>=4.16",
+            ],
+            # Pyodide currently bundles an older compatible-by-name release.
+            # Replace it when the explicit lower bound is not satisfied.
+            reinstall=True,
         )
         from font_fetcher.ocp import install_ocp_font_hook  # type: ignore
         from OCP.Font import (  # type: ignore
