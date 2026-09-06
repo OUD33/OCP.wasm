@@ -99,6 +99,15 @@ async def main():
             )
             await pyodide_js.loadPackage(missing_payloads)
 
+        missing_payloads = missing_pyodide_payloads(
+            pyodide_modules, _module_available
+        )
+        if missing_payloads:
+            raise RuntimeError(
+                "Pyodide payloads are still unavailable after loading: "
+                + ", ".join(missing_payloads)
+            )
+
         # Loading Beautiful Soup through Pyodide pulls its bundled
         # typing_extensions 4.15 payload over the 4.16 wheel installed by the
         # bootstrap. A direct wheel URL bypasses Micropip's satisfied-version
@@ -114,14 +123,13 @@ async def main():
         sys.modules.pop("typing_extensions", None)
         from typing_extensions import sentinel as _sentinel  # noqa: F401
 
-        # Import every declared Pyodide module and retained OCP binding even when
-        # earlier imports fail. A single CI run therefore reports the complete
-        # missing/broken module set.
-        runtime_modules = {
-            module
-            for modules in pyodide_modules.values()
-            for module in modules
-        }
+        # Payload discovery above checks the complete Python dependency closure.
+        # Import only the application/test roots because some transitive packages
+        # eagerly import optional dependencies that their Pyodide lock entry does
+        # not declare (matplotlib_inline imports optional matplotlib, for example).
+        # Every retained OCP binding is imported because a pruned binding can have
+        # missing native symbols even when Python can discover its module spec.
+        runtime_modules = {"build123d", "pytest"}
         runtime_modules.update(f"OCP.{module}" for module in REQUIRED_MODULES)
         import_failures = collect_import_failures(
             runtime_modules, importlib.import_module
