@@ -186,6 +186,21 @@ def collect_import_failures(
     return failures
 
 
+def expose_module_path(
+    module_name: str,
+    importer: Callable[[str], object],
+) -> object:
+    """Import a dotted module path and publish every child on its parent."""
+    parts = module_name.split(".")
+    parent = importer(parts[0])
+    module = parent
+    for index, child_name in enumerate(parts[1:], start=2):
+        module = importer(".".join(parts[:index]))
+        setattr(parent, child_name, module)
+        parent = module
+    return module
+
+
 def payloads_for_missing_imports(
     failures: Mapping[str, str],
     lock_packages: Mapping[str, Mapping[str, Any]],

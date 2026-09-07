@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
 from util.runtime_preflight import (
     collect_import_failures,
     compatible_pyodide_payloads,
     effective_distribution_versions,
+    expose_module_path,
     format_import_failures,
     installed_pyodide_modules,
     missing_pyodide_payloads,
@@ -15,6 +17,24 @@ from util.runtime_preflight import (
 
 
 class RuntimePreflightTests(unittest.TestCase):
+    def test_exposes_every_module_in_a_dotted_path_on_its_parent(self):
+        build123d = SimpleNamespace()
+        topology = SimpleNamespace()
+        three_d = object()
+        modules = {
+            "build123d": build123d,
+            "build123d.topology": topology,
+            "build123d.topology.three_d": three_d,
+        }
+
+        result = expose_module_path(
+            "build123d.topology.three_d", modules.__getitem__
+        )
+
+        self.assertIs(result, three_d)
+        self.assertIs(build123d.topology, topology)
+        self.assertIs(topology.three_d, three_d)
+
     def test_resolves_duplicate_distribution_names_through_effective_lookup(self):
         resolved = {
             "pytest": "9.1.1",
